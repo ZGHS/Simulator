@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>模拟器</title>
+
+    <!--jquery.js-->
+    <script src="js/lib/jquery_js/jquery-3.4.1.js"></script>
+
+    <!--vue.js-->
+    <script src="js/lib/vue_js/vue.js"></script>
+
+    <!-- 最新版本的 Bootstrap 核心 CSS 文件 -->
+    <link rel="stylesheet" href="js/lib/bootstrap_js/bootstrap.min.css">
+
+    <!-- 最新的 Bootstrap 核心 JavaScript 文件 -->
+    <script src="js/lib/bootstrap_js/bootstrap.min.js"></script>
+
+    <!--状态图生成所需js文件-->
+    <script src="js/lib/go_js/go.js"></script>
+    <script src="js/state_chart.js"></script>
+
+    <!--a-frame框架所需js文件-->
+    <script src="js/lib/aframe_js/v1.0.4/aframe-v1.0.4.js"></script>
+
+    <!--a-frame场景创建js文件-->
+    <script src="js/vr/vr_base_scenes.js"></script>
+    <script src="js/vr/vr_components_add.js"></script>
+    <script src="js/vr/vr_load_scene.js"></script>
+    <script src="js/vr/vr_full_screen.js"></script>
+
+    <!--保存系统模型素材\场景信息的js文件-->
+    <script src="js/objectsMap.js"></script>
+    <script src="js/sceneMap.js"></script>
+
+    <!--其他A-Frame组件-->
+    <script src="js/lib/super-hands_js/super-hands.min.js"></script>
+    <script src="js/lib/aframe_js/aframe-event-set-component.min.js"></script>
+    <script src="js/lib/aframe-extras_js/aframe-extras.min.js"></script>
+    <script src="js/lib/aframe-physics-system_js/aframe-physics-system.min.js"></script>
+
+    <script src="js/vr/vr_example.js"></script>
+
+    <style>
+        * {
+            padding: 0;
+            margin: 0;
+        }
+    </style>
+</head>
+
+<!--加载body：1、使用bootstrap bg-info类 2、直接进行状态图的加载-->
+<!--bg-info类，在本实例中使最底部背景呈现蓝色-->
+<body class="bg-info" onload="chart_init()">
+
+<script>
+    //调用对象：a标签或id为myTabs
+    $('#myTabs a').click(function (e) {
+        e.preventDefault();//将正常的a标签的调转页面行为禁用
+        $(this).tab('show');
+    });
+</script>
+<div>
+    <ul id="m_menu" class="nav nav-tabs" role="tablist">
+        <li role="presentation" class="active">
+            <a href="#home" aria-controls="home" role="tab" data-toggle="tab">1.构建</a>
+        </li>
+        <li role="presentation" onclick="create_state_chart()">
+            <a href="#message" aria-controls="messages" role="tab" data-toggle="tab">2.模拟</a>
+        </li>
+
+        <li role="presentation" onclick="saveJSON(state_app.states,'data.json')">
+            <a href="#" role="tab" data-toggle="tab">3.导出</a>
+        </li>
+    </ul>
+</div>
+
+<div id="alert_app" class="alert alert-warning" v-if="isHidden" style="text-align: center">{{alert_info}}
+    <button type="button" class="close fade in" aria-label="Close">
+        <span aria-hidden="true" v-on:click="close()">&times;</span>
+    </button>
+</div>
+
+
+<div class="tab-content">
+    <div role="tabpanel" class="tab-pane fade in active" id="home">
+        <div class="row">
+            <div id="scene-app" class="col-md-4 bg-info">
+                <div class="panel panel-default" style="height: 560px;">
+                    <div class="panel-heading">
+                        <h3 class="panel-title" style="text-align: center">所有场景</h3>
+                    </div>
+                    <div class="panel-body">
+                        <div style="display:flex;justify-content:center;align-items: center;">
+                            <div class="btn-group-vertical" role="group" aria-label="..."
+                                 style="margin: auto auto; ">
+                                <form class="form-inline" v-on:submit.prevent="addNewScene">
+                                    <div class="input-group">
+                                        <label class="input-group-addon" for="scene-name-input">场景名称:</label>
+                                        <input style='width:200px;' id="scene-name-input" type="text"
+                                               v-model="newSceneName"
+                                               class="form-control" placeholder="eg:教室" minlength="1" required>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">添加
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                        <div class="pre-scrollable"
+                             style="height:290px;margin-top:20px;display:flex;justify-content:center;align-items: center;border: gainsboro 1px solid;padding: 10px;overflow: auto;">
+                            <div id="scenes_div" class="btn-group-vertical" role="group" aria-label="..."
+                                 style="margin: auto auto; ">
+                                <div
+                                        is="scene-item"
+                                        v-for="(scene, index) in scenes"
+                                        v-bind:key="scene.id"
+                                        v-bind:scene="scene"
+                                        v-on:remove="removeScene(index)"
+                                        v-on:show-scene-detail="test(scene,index)"
+                                ></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="scene-object-kind-app" class="col-md-4 bg-info">
+                <div class="panel panel-default" style="height: 560px;">
+                    <div class="panel-heading">
+                        <h3 class="panel-title" style="text-align: center">物体类别</h3>
+                    </div>
+                    <div class="panel-body">
+                        <div style="display:flex;justify-content:center;align-items: center;">
+                            <div class="btn-group-vertical" role="group" aria-label="..."
+                                 style="margin: auto auto; ">
+                                <form v-on:submit.prevent="addNewObjectKind">
+                                    <div class="input-group">
+                                        <label class="input-group-addon"
+                                               for="scene-object-kind-name-input">类别名称:</label>
+                                        <input style='width:280px' id="scene-object-kind-name-input"
+                                               type="text"
+                                               v-model="newObjectKindName"
+                                               class="form-control" placeholder="eg:椅子" minlength="1" required>
+                                    </div>
+                                    <div class="input-group" style="margin-top: 20px">
+                                        <label class="input-group-addon"
+                                               for="scene-object-kind-pic-input">类别图片:</label>
+                                        <input class="form-control" style='width:280px' type="file"
+                                               id="scene-object-kind-pic-input">
+                                    </div>
+                                    <div class="input-group" style="margin-top: 20px">
+                                        <img id="small_look_img" src=""
+                                             style="  width: 50px;height: 50px;border: 1px solid black;"/>
+                                    </div>
+                                    <button style='margin-top: 20px' type="submit"
+                                            class="btn btn-primary">添加
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                        <div class="pre-scrollable"
+                             style="height:260px;margin-top:20px;display:flex;justify-content:center;align-items: center;border: gainsboro 1px solid;padding: 10px;overflow: auto;">
+                            <div id="scene_object_kinds_div" class="btn-group-vertical" role="group" aria-label="..."
+                                 style="margin: auto auto; ">
+                                <div
+                                        is="scene_object_kind_item"
+                                        v-for="(scene_object_kind, index) in scene_object_kinds"
+                                        v-bind:key="scene_object_kind.id"
+                                        v-bind:scene_object_kind="scene_object_kind"
+                                        v-on:remove="removeSceneObjectKind(index)"
+                                        v-on:show-scene-object-kind-detail="test(scene_object_kind,index)"
+                                ></div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+
+            <div class="col-md-4 bg-info">
+                <div class="panel panel-default" style="height: 560px">
+                    <div class="panel-heading">
+                        <h3 class="panel-title" style="text-align: center">详情</h3>
+                    </div>
+                    <div id="detail_div" class="panel-body "
+                         style="display:flex;justify-content:center;align-items: center;"
+                    >
+                        <div class="btn-group-vertical" role="group" aria-label="...">
+
+
+                            <div class="panel panel-default">
+                                <div class="panel-heading">
+                                    <h3 class="panel-title">缩放</h3>
+                                </div>
+                                <div class="panel-body">
+                                    <div class="input-group">
+                                        <label class="input-group-addon"
+                                               for="scale-x-input">x</label>
+                                        <input style='width:100px;margin-right: 5px'
+                                               id="scene-scale-x-input"
+                                               type="number"
+                                               min="0" max="100"
+                                               v-model="scale.scale_x"
+                                               class="form-control"
+                                               step="0.001"
+                                               required>
+                                        <label class="input-group-addon"
+                                               for="scale-y-input">y</label>
+                                        <input style='width:100px;margin-right: 5px'
+                                               id="scene-scale-y-input"
+                                               type="number"
+                                               min="0" max="100"
+                                               v-model="scale.scale_y"
+                                               class="form-control"
+                                               step="0.001"
+                                               required>
+                                        <label class="input-group-addon"
+                                               for="scale-z-input">z</label>
+                                        <input style='width:100px;' id="scene-scale-z-input"
+                                               type="number"
+                                               min="0" max="100"
+                                               v-model="scale.scale_z"
+                                               class="form-control"
+                                               step="0.001"
+                                               required>
+                                    </div>
+
+                                </div>
+                            </div>
+                            <div class="panel panel-default">
+                                <div class="panel-heading">
+                                    <h3 class="panel-title">预览</h3>
+                                </div>
+                                <div class="panel-body">
+                                    <div id="object_kind_pic_div" class="input-group" role="group"
+                                         aria-label="..."
+                                         style="margin: auto auto">
+                                        <img id="look_img" v-bind:src="img_src"
+                                             style="  width: 300px;height: 300px;border: 1px solid black;vertical-align: bottom;"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!---------------------------------------------------------------------------------------------------------------------------------------->
+    <div role="tabpanel" class="tab-pane fade" id="message">
+        <div class="row">
+            <div class="col-md-3 bg-info">
+                <div class="panel panel-default" style="height: 420px">
+                    <div class="panel-heading">
+                        <h3 class="panel-title" style="text-align: center">所有状态</h3>
+                    </div>
+
+                    <div class="panel-body">
+
+                        <div style="display:flex;justify-content:center;align-items: center;">
+                            <div class="btn-group-vertical" role="group" aria-label="...">
+                                <div id="choice_scenes" class="input-group">
+                                    <label class="input-group-addon"
+                                           for="choice">场景选择:</label>
+                                    <div id="choice" class="dropdown"
+                                         style='width:230px'>
+                                        <button class="btn btn-default dropdown-toggle form-control" type="button"
+                                                id="choice_drop_down_menu"
+                                                data-toggle="dropdown" aria-haspopup="true" aria-expanded="true">
+                                            {{chosenSceneIndex<0?'未选择':scenes[chosenSceneIndex].name}}
+                                            <span class="caret"></span>
+                                        </button>
+                                        <ul style="width: 230px" class="dropdown-menu "
+                                            aria-labelledby="choice_drop_down_menu">
+                                            <li
+                                                    is="choice_scene_item"
+                                                    v-for="(scene, index) in scenes"
+                                                    v-bind:key="scene.id"
+                                                    v-bind:scene="scene"
+                                                    v-on:choose-scene="test(scene,index)"
+                                            ></li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+
+                        <div id="state_app" style="margin-top: 20px">
+
+                            <div style="display:flex;justify-content:center;align-items: center;">
+                                <div class="btn-group-vertical" role="group" aria-label="..."
+                                     style="margin: auto auto; ">
+                                    <form v-on:submit.prevent="addNewState">
+                                        <div class="input-group">
+                                            <label class="input-group-addon"
+                                                   for="state-name-input">状态名称:</label>
+                                            <input style='width:230px' id="state-name-input" type="text"
+                                                   v-model="newStateName"
+                                                   class="form-control" placeholder="eg:状态1"
+                                                   minlength="1" required>
+                                        </div>
+                                        <button style='margin-top: 20px' type="submit"
+                                                class="btn btn-primary">
+                                            添加
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                            <div class="pre-scrollable"
+                                 style="height:190px;margin-top:20px;display:flex;justify-content:center;align-items: center;border: gainsboro 1px solid;padding: 10px;overflow: auto;">
+                                <div id="states_div" class="btn-group-vertical" role="group" aria-label="..."
+                                     style="margin: auto auto; ">
+                                    <div
+                                            is="state-item"
+                                            v-for="(state, index) in states"
+                                            v-bind:key="state.id"
+                                            v-bind:state="state"
+                                            v-on:remove="removeState(index)"
+                                            v-on:show-state-detail="test(state,index)"
+                                    ></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+            <div class="col-md-3 bg-info">
+                <div class="panel panel-default" style="height: 420px">
+                    <div class="panel-heading">
+                        <h3 class="panel-title" style="text-align: center">所需物体</h3>
+                    </div>
+                    <div class="panel-body ">
+                        <div style="display:flex;justify-content:center;align-items: center;">
+                            <div class="btn-group-vertical" role="group" aria-label="...">
+                                <div id="object_kind_app" class="input-group">
+                                    <label class="input-group-addon"
+                                           for="object_kind">物体类别:</label>
+                                    <div id="object_kind" class="dropdown"
+                                         style='width:230px'>
+                                        <button class="btn btn-default dropdown-toggle form-control" type="button"
+                                                id="object_kind_drop_down_menu"
+                                                data-toggle="dropdown" aria-haspopup="true" aria-expanded="true">
+                                            {{currentObjectKindIndex<0?'未选择':object_kinds[currentObjectKindIndex].name}}
+                                            <span class="caret"></span>
+                                        </button>
+                                        <ul style='width:230px' class="dropdown-menu"
+                                            aria-labelledby="object_kind_drop_down_menu">
+                                            <li
+                                                    is="object_kind_item"
+                                                    v-for="(object_kind, index) in object_kinds"
+                                                    v-bind:key="object_kind.id"
+                                                    v-bind:object_kind="object_kind"
+                                                    v-on:choose-object-kind="test(object_kind,index)"
+                                            ></li>
+                                        </ul>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+
+
+                        <div id="object_app" style="margin-top: 20px">
+                            <div style="display:flex;justify-content:center;align-items: center;">
+
+
+                                <div class="btn-group-vertical" role="group" aria-label="..."
+                                     style="margin: auto auto; ">
+                                    <form v-on:submit.prevent="addNewObject">
+
+
+                                        <div class="input-group">
+                                            <label class="input-group-addon"
+                                                   for="object-name-input">物体名称:</label>
+                                            <input style='width:230px' id="object-name-input" type="text"
+                                                   v-model="newObjectName"
+                                                   class="form-control" placeholder="eg:物体1"
+                                                   minlength="1" required>
+                                        </div>
+
+
+                                        <button style='margin-top: 20px' type="submit"
+                                                class="btn btn-primary">添加
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                            <div class="pre-scrollable"
+                                 style="height:190px;margin-top:20px;display:flex;justify-content:center;align-items: center;border: gainsboro 1px solid;padding: 10px;overflow: auto;">
+                                <div id="objects_div" class="btn-group-vertical" role="group" aria-label="..."
+                                     style="margin: auto auto; ">
+                                    <div
+                                            is="object-item"
+                                            v-for="(object, index) in objects"
+                                            v-bind:key="object.id"
+                                            v-bind:object="object"
+                                            v-on:remove="removeObject(object,index)"
+                                            v-on:show-object-detail="test(object,index)"
+                                    ></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 bg-info">
+                <div class="panel panel-default" style="height: 420px">
+                    <div class="panel-heading">
+                        <h3 class="panel-title" style="text-align: center">动作信息</h3>
+                    </div>
+                    <div class="panel-body ">
+
+                        <div style="display:flex;justify-content:center;align-items: center;">
+                            <div class="btn-group-vertical" role="group" aria-label="...">
+                                <div id="target_state_app" class="input-group">
+                                    <label class="input-group-addon"
+                                           for="target_states">目标状态:</label>
+                                    <div id="target_states" class="dropdown"
+                                         style='width:230px;'>
+                                        <button class="btn btn-default dropdown-toggle form-control" type="button"
+                                                id="target_state_drop_down_menu"
+                                                data-toggle="dropdown" aria-haspopup="true" aria-expanded="true">
+                                            {{currentTargetStateIndex<0?'未选择':target_states[currentTargetStateIndex].name}}
+                                            <span class="caret"></span>
+                                        </button>
+                                        <ul style='width:230px;' class="dropdown-menu"
+                                            aria-labelledby="target_state_drop_down_menu">
+                                            <li
+                                                    is="target_state_item"
+                                                    v-for="(target_state, index) in target_states"
+                                                    v-bind:key="target_state.id"
+                                                    v-bind:target_state="target_state"
+                                                    v-on:choose-target-state="test(target_state,index)"
+                                            ></li>
+                                        </ul>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+
+                        <div id="action_app" style="margin-top: 20px">
+                            <div style="display:flex;justify-content:center;align-items: center;">
+                                <div class="btn-group-vertical" role="group" aria-label="...">
+                                    <form v-on:submit.prevent="addNewAction">
+                                        <div class="input-group">
+                                            <label class="input-group-addon"
+                                                   for="action-name-input">动作内容:</label>
+                                            <input style='width:230px' id="action-name-input"
+                                                   type="text"
+                                                   v-model="newActionName"
+                                                   class="form-control" placeholder="eg:添加一把椅子"
+                                                   minlength="1" required>
+                                        </div>
+
+                                        <button style='margin-top: 20px' type="submit"
+                                                class="btn btn-primary">添加
+                                        </button>
+                                    </form>
+
+
+                                </div>
+                            </div>
+                            <div class="pre-scrollable"
+                                 style="height:190px;margin-top:20px;display:flex;justify-content:center;align-items: center;border: gainsboro 1px solid;padding: 10px;overflow: auto;">
+                                <div id="actions_div" class="btn-group-vertical" role="group" aria-label="..."
+                                     style="margin: auto auto; ">
+                                    <div
+                                            is="action_item"
+                                            v-for="(action, index) in actions"
+                                            v-bind:key="action.id"
+                                            v-bind:action="action"
+                                            v-on:remove="removeAction(index)"
+                                    >
+                                    </div>
+
+
+                                </div>
+                            </div>
+                        </div>
+
+
+                    </div>
+                </div>
+            </div>
+
+
+            <div class="col-md-3 bg-info">
+                <div class="panel panel-default" style="height: 420px">
+                    <div class="panel-heading">
+                        <h3 class="panel-title" style="text-align: center">空间信息</h3>
+                    </div>
+                    <div class="panel-body ">
+                        <div id="space_app"
+                             style="display:flex;justify-content:center;align-items: center;">
+                            <div class="btn-group-vertical" role="group" aria-label="...">
+                                <!--                                <form v-on:submit.prevent="saveSpace">-->
+                                <form>
+                                    <div class="panel panel-default">
+                                        <div class="panel-heading">
+                                            <h3 class="panel-title">位置</h3>
+                                        </div>
+                                        <div class="panel-body">
+                                            <div class="input-group">
+                                                <label class="input-group-addon"
+                                                       for="loc-x-input">x</label>
+                                                <input style='width:70px;margin-right: 5px'
+                                                       id="loc-x-input"
+                                                       type="number"
+                                                       min="0" max="100"
+                                                       v-model="space.loc.loc_x"
+                                                       class="form-control"
+                                                       required>
+                                                <label class="input-group-addon"
+                                                       for="loc-y-input">y</label>
+                                                <input style='width:70px;margin-right: 5px'
+                                                       id="loc-y-input"
+                                                       type="number"
+                                                       min="0" max="100"
+                                                       v-model="space.loc.loc_y"
+                                                       class="form-control"
+                                                       required>
+                                                <label class="input-group-addon"
+                                                       for="loc-z-input">z</label>
+                                                <input style="width: 70px" id="loc-z-input"
+                                                       type="number"
+                                                       min="0" max="100"
+                                                       v-model="space.loc.loc_z"
+                                                       class="form-control"
+                                                       required>
+                                            </div>
+
+
+                                        </div>
+                                    </div>
+
+
+                                    <div class="panel panel-default">
+                                        <div class="panel-heading">
+                                            <h3 class="panel-title">旋转</h3>
+                                        </div>
+                                        <div class="panel-body">
+                                            <div class="input-group">
+                                                <label class="input-group-addon"
+                                                       for="rotate-h-input">竖直方向</label>
+                                                <input style="width: 70px" id="rotate-h-input"
+                                                       type="number"
+                                                       min="0" max="100"
+                                                       v-model="space.rotate.rotate_h"
+                                                       class="form-control"
+                                                       required>
+                                                <label class="input-group-addon"
+                                                       for="rotate-v-input">水平方向</label>
+                                                <input style="width: 70px" id="rotate-v-input"
+                                                       type="number"
+                                                       min="0" max="100"
+                                                       v-model="space.rotate.rotate_v"
+                                                       class="form-control"
+                                                       required>
+                                            </div>
+                                        </div>
+                                    </div>
+
+
+                                    <div class="panel panel-default">
+                                        <div class="panel-heading">
+                                            <h3 class="panel-title">缩放</h3>
+                                        </div>
+                                        <div class="panel-body">
+                                            <div class="input-group">
+                                                <label class="input-group-addon"
+                                                       for="scale-x-input">x</label>
+                                                <input style='width:77px;margin-right: 0px'
+                                                       id="scale-x-input"
+                                                       type="number"
+                                                       min="0" max="100"
+                                                       v-model="space.scale.scale_x"
+                                                       class="form-control"
+                                                       step="0.001"
+                                                       required>
+                                                <label class="input-group-addon"
+                                                       for="scale-y-input">y</label>
+                                                <input style='width:77px;margin-right: 0px'
+                                                       id="scale-y-input"
+                                                       type="number"
+                                                       min="0" max="100"
+                                                       v-model="space.scale.scale_y"
+                                                       class="form-control"
+                                                       step="0.001"
+                                                       required>
+                                                <label class="input-group-addon"
+                                                       for="scale-z-input">z</label>
+                                                <input style='width:77px;' id="scale-z-input"
+                                                       type="number"
+                                                       min="0" max="100"
+                                                       v-model="space.scale.scale_z"
+                                                       class="form-control"
+                                                       step="0.001"
+                                                       required>
+                                            </div>
+
+                                        </div>
+                                    </div>
+                                </form>
+
+                            </div>
+
+
+                        </div>
+
+                    </div>
+
+
+                </div>
+            </div>
+
+
+        </div>
+
+        <div id="result_panel" class="panel panel-default">
+            <div class="panel-body">
+                <div id="sample" class="row" style="padding: 0">
+                    <div id="myDiagramDiv"
+                         style="width:49.9%;height:510px;border: solid 1px black;background: whitesmoke;float: left;"></div>
+                    <!--                                <div id="myEmbeddedScene" class="col-md-6" v-bind:style="styleObject"></div>-->
+                    <div id="myEmbeddedScene"
+                         style="width:49.9%;height:510px;border: solid 1px black;background: whitesmoke;padding: 0;float:right"></div>
+                    <!--                    <div id="myDiagramDiv" class="col-md-6"-->
+                    <!--                         style="height:510px;border: solid 1px black;background: whitesmoke"></div>-->
+                    <!--                    &lt;!&ndash;                                <div id="myEmbeddedScene" class="col-md-6" v-bind:style="styleObject"></div>&ndash;&gt;-->
+                    <!--                    <div id="myEmbeddedScene" class="col-md-6"-->
+                    <!--                         style="height:510px;border: solid 1px black;background: whitesmoke;padding: 0"></div>-->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="js/main-v.js"></script>
+</body>
+</html>
